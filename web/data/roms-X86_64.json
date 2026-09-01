@@ -1,0 +1,26 @@
+[
+    {
+        "rom_name":"macOS Catalina",
+        "rom_icon":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/MacOS_Catalina_logo.png/512px-MacOS_Catalina_logo.png",
+        "rom_url":"https://github.com/kholia/OSX-KVM",
+        "rom_path":"Catalina.qcow2",
+        "rom_avail":true,
+        "rom_size":"20GB",
+        "rom_arch":"X86_64",
+        "rom_kernel":"apple",
+        "rom_extra":"-machine q35 -cpu Penryn,vendor=GenuineIntel,+invtsc,vmx=on,+pcid,+ssse3,+sse4.2,+popcnt,+avx,+aes,+xsave,+xsaveopt,check -device isa-applesmc,osk=\"ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc\" -smbios type=2 -device e1000-82545em,netdev=n0 -netdev user,id=n0 -device ich9-intel-hda -device hda-duplex -device nec-usb-xhci -device usb-kbd -device usb-tablet",
+        "final_rom_file_name":"Catalina.qcow2"
+    },
+    {
+        "rom_name":"OpenCore Template",
+        "rom_icon":"https://raw.githubusercontent.com/acidanthera/OpenCorePkg/master/Docs/Logos/OpenCore_PNG_1024.png",
+        "rom_url":"https://github.com/acidanthera/OpenCorePkg",
+        "rom_path":"OpenCore.qcow2",
+        "rom_avail":true,
+        "rom_size":"150MB",
+        "rom_arch":"X86_64",
+        "rom_kernel":"apple",
+        "rom_extra":"-machine q35 -cpu Penryn,vendor=GenuineIntel,+invtsc,vmx=on,+pcid,+ssse3,+sse4.2,+popcnt,+avx,+aes,+xsave,+xsaveopt,check -device isa-applesmc,osk=\"ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc\" -smbios type=2 -device e1000-82545em,netdev=n0 -netdev user,id=n0 -device ich9-intel-hda -device hda-duplex -device nec-usb-xhci -device usb-kbd -device usb-tablet",
+        "final_rom_file_name":"OpenCore.qcow2"
+    }
+]

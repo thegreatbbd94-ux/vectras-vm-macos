@@ -1,0 +1,158 @@
+package com.vectras.vm;
+
+import android.Manifest;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.util.Log;
+import android.widget.Button;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+
+import com.anbui.elephant.app.AppChecker;
+import com.anbui.elephant.utils.IntentUtil;
+import com.anbui.elephant.verify.ParamNotebookVerifier;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.vectras.vm.main.MainActivity;
+import com.vectras.vm.main.core.PendingCommand;
+import com.vectras.vm.utils.FileUtils;
+import com.vectras.vm.utils.JSONUtils;
+import com.vectras.vm.utils.PermissionUtils;
+import com.vectras.vm.utils.UIUtils;
+
+import java.util.HashMap;
+import java.util.Objects;
+
+public class CqcmActivity extends AppCompatActivity {
+    private final String TAG = "CqcmActivity";
+
+    String source;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (!PermissionUtils.storagepermission(this, false)) {
+            UIUtils.edgeToEdge(this);
+            setContentView(R.layout.activity_cqcm);
+            UIUtils.setOnApplyWindowInsetsListener(findViewById(R.id.main));
+
+            Button buttonallow = findViewById(R.id.buttonallow);
+            buttonallow.setOnClickListener(v -> {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                    Toast.makeText(getApplicationContext(), getResources().getString(R.string.find_and_allow_access_to_storage_in_settings), Toast.LENGTH_LONG).show();
+                } else {
+                    ActivityCompat.requestPermissions(CqcmActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1000);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+
+        Log.i("CqcmActivity", "Checking access to storage...");
+        if (!PermissionUtils.storagepermission(this,false)) return;
+
+        source = IntentUtil.getCallingPackageName(this);
+
+        if (source == null || !source.equals(AppChecker.PARAM_NOTEBOOK_PACKAGE_NAME) || !AppChecker.isParamNoteBook(this)) {
+            Toast.makeText(getApplicationContext(), "Cannot continue due to an invalid source.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        if (getIntent().hasExtra("key")) {
+            ParamNotebookVerifier.verify(this, getIntent().getStringExtra("key"), isValid -> {
+                if (isValid) {
+                    runOnUiThread(() -> {
+                        if (getIntent().hasExtra("command")) {
+                            runCommand(getIntent().getStringExtra("command"), source);
+                        } else {
+                            startAdd();
+                        }
+                    });
+                } else {
+                    Toast.makeText(getApplicationContext(), "Invalid key.", Toast.LENGTH_LONG).show();
+                    finish();
+                }
+            });
+        } else {
+            Toast.makeText(getApplicationContext(), "Cannot continue due to an invalid source.", Toast.LENGTH_LONG).show();
+            finish();
+        }
+    }
+
+    private void startAdd() {
+        if (!FileUtils.isFileExists(AppConfig.romsdatajson)) {
+            FileUtils.writeToFile(AppConfig.maindirpath, "roms-data.json", "[]");
+        }
+
+        if (JSONUtils.isValidFromFile(AppConfig.romsdatajson)) {
+            if (getIntent().hasExtra("content")) {
+                if (getIntent().hasExtra("cqcmcontent")) {
+                    PendingCommand.vmId = getIntent().getStringExtra("vmId");
+                    PendingCommand.vmConfig = getIntent().getStringExtra("content");
+                    PendingCommand.paramsNotebookConfig = getIntent().getStringExtra("cqcmcontent");
+                    PendingCommand.forceCreate = getIntent().getBooleanExtra("forceCreateNew", false);
+                } else {
+                    HashMap<String, Object> mapForCreateNewVM;
+                    String _map;
+
+
+                    if (Objects.requireNonNull(getIntent().getStringExtra("content")).endsWith("}]")) {
+                        _map = Objects.requireNonNull(getIntent().getStringExtra("content")).substring(0, Objects.requireNonNull(getIntent().getStringExtra("content")).length() - 1);
+                    } else {
+                        _map = Objects.requireNonNull(getIntent().getStringExtra("content"));
+                    }
+                    if (JSONUtils.isValidFromString(_map)) {
+                        mapForCreateNewVM = new Gson().fromJson(_map, new TypeToken<HashMap<String, Object>>() {
+                        }.getType());
+                        mapForCreateNewVM.put("vmID", VMManager.startRamdomVMID());
+                        VMManager.addVM(mapForCreateNewVM, -1);
+                    } else {
+                        Toast.makeText(getApplicationContext(), "The data for the new virtual machine is corrupted and cannot be created.", Toast.LENGTH_LONG).show();
+                    }
+                }
+            } else {
+                Toast.makeText(getApplicationContext(), "There is no data about the new virtual machine to create.", Toast.LENGTH_LONG).show();
+            }
+        } else {
+            Toast.makeText(getApplicationContext(), "The virtual machine list data is corrupted and new virtual machines cannot be added right now.", Toast.LENGTH_LONG).show();
+        }
+
+        if (!MainActivity.isActivate) {
+            startActivity(new Intent(this, SplashActivity.class));
+        } else {
+            Intent intent = new Intent();
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            intent.setClass(this, MainActivity.class);
+            startActivity(intent);
+        }
+        finish();
+    }
+
+    private void runCommand(String _command, String _source) {
+        Log.i(TAG, "runCommand: " + _command);
+
+        PendingCommand.command = _command;
+        PendingCommand.source = _source;
+
+        if (!MainActivity.isActivate) {
+            startActivity(new Intent(this, SplashActivity.class));
+        } else {
+            Intent intent = new Intent();
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            intent.setClass(this, MainActivity.class);
+            startActivity(intent);
+        }
+        finish();
+    }
+}

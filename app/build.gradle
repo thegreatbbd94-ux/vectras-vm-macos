@@ -1,0 +1,221 @@
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
+    id 'com.google.android.gms.oss-licenses-plugin'
+}
+
+// Optional signing override: put a keystore.properties file at the repo root
+// (gitignored) with storeFile / storePassword / keyAlias / keyPassword to sign
+// with a private keystore, e.g. after rotating the public one. Without that
+// file the historical values below are used, so existing local and CI builds
+// are unaffected.
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def vectrasStoreFile = keystoreProps['storeFile'] ?: '../testkey.jks'
+def vectrasStorePassword = keystoreProps['storePassword'] ?: '856856'
+def vectrasKeyAlias = keystoreProps['keyAlias'] ?: 'vectras'
+def vectrasKeyPassword = keystoreProps['keyPassword'] ?: '856856'
+
+android {
+    namespace 'com.vectras.vm'
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId "com.vectras.vm"
+        minSdk minApi
+        targetSdk targetApi
+        versionCode 175
+        versionName "4.6.8"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled true
+
+        resValue "string", "app_version", versionName
+        resValue "integer", "app_version_code", versionCode.toString()
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file(vectrasStoreFile)
+            keyAlias vectrasKeyAlias
+            storePassword vectrasStorePassword
+            keyPassword vectrasKeyPassword
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+        release {
+            storeFile file(vectrasStoreFile)
+            keyAlias vectrasKeyAlias
+            storePassword vectrasStorePassword
+            keyPassword vectrasKeyPassword
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+        aidl true
+        resValues = true
+    }
+
+    splits {
+        abi {
+            enable false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    buildToolsVersion '36.1.0'
+    ndkVersion '28.2.13676358'
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation libs.androidx.appcompat
+    implementation libs.material
+    implementation libs.androidx.annotation
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.drawerlayout
+    implementation libs.androidx.preference.ktx
+    implementation libs.androidx.swiperefreshlayout
+    implementation libs.androidx.viewpager
+    implementation platform(libs.firebase.bom)
+    implementation libs.firebase.analytics
+    implementation libs.firebase.crashlytics
+    implementation libs.firebase.messaging
+    implementation libs.guava
+    implementation libs.gson
+    implementation libs.androidx.window
+    implementation libs.commons.io
+    implementation libs.lottie
+    implementation libs.commons.compress
+    implementation libs.androidx.activity.ktx
+    implementation libs.androidx.constraintlayout
+    implementation libs.androidx.preference.ktx
+    implementation libs.androidx.documentfile
+    implementation libs.androidx.core.ktx
+    compileOnly project(':shell-loader:stub')
+    implementation project(":terminal-view")
+    
+    // Retrofit
+    implementation libs.retrofit
+    implementation libs.converter.gson
+
+    // Glide
+    implementation libs.glide
+    annotationProcessor libs.compiler
+    
+    // Test dependencies
+    testImplementation libs.junit
+    androidTestImplementation libs.androidx.junit
+    androidTestImplementation libs.androidx.espresso.core
+
+    implementation libs.play.services.oss.licenses
+}
+
+afterEvaluate {
+    tasks.register("generatePrefs") {
+        //noinspection UnnecessaryQualifiedReference
+        def xml = groovy.xml.DOMBuilder.parse((new StringReader(file('src/main/res/xml/preferences_x11.xml').text)))
+        def preferenceNodes = xml.documentElement.getElementsByTagName("*")
+        def preferences = []
+
+        for (int i = 0; i < preferenceNodes.length; i++) {
+            def node = preferenceNodes.item(i)
+            if (node.nodeName == 'EditTextPreference' && node.getAttribute("app:key") != "extra_keys_config")
+                preferences << [ type: 'String',  key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue") ]
+            else if (node.nodeName == 'SeekBarPreference')
+                preferences << [ type: 'Int', key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue") ]
+            else if (node.nodeName == 'ListPreference') {
+                def entries = node.getAttribute("app:entries")
+                def values = node.getAttribute("app:entryValues")
+                preferences << [type: 'List', key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue"),
+                                entries: entries.substring(7, entries.length()), values: values.substring(7, values.length())]
+            }
+            else if (node.nodeName == 'SwitchPreferenceCompat')
+                preferences << [ type: 'Boolean',  key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue") ]
+        }
+
+        def out = file('build/generated/java/com/vectras/vm/x11/Prefs.java')
+        out.getParentFile().exists() || out.getParentFile().mkdirs()
+        out.delete()
+        out.createNewFile()
+
+        out << 'package com.vectras.vm.x11;\n'
+        out << 'import java.util.HashMap;\n'
+        out << 'import android.content.Context;\n'
+        out << 'import android.content.SharedPreferences;\n'
+        out << 'import com.vectras.vm.x11.utils.TermuxX11ExtraKeys;\n'
+        out << 'import com.vectras.vm.R;\n'
+        out << '\n'
+        out << 'public class Prefs extends LoriePreferences.PrefsProto {\n'
+        preferences.each {
+            if (it.type == 'Int' || it.type == 'Boolean')
+                out << "  public final ${it.type}Preference ${it.key} = new ${it.type}Preference(\"${it.key}\", ${it.default});\n"
+            else if (it.type == 'String')
+                out << "  public final StringPreference ${it.key} = new StringPreference(\"${it.key}\", \"${it.default}\");\n"
+            else if (it.type == 'List')
+                out << "  public final ${it.type}Preference ${it.key} = new ${it.type}Preference(\"${it.key}\", \"${it.default}\", R.array.${it.entries}, R.array.${it.values});\n"
+        }
+        out << '  public final StringPreference extra_keys_config = new StringPreference("extra_keys_config", TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS);\n'
+        out << '  public final HashMap<String, Preference> keys = new HashMap<>() {{\n'
+        preferences.each { out << '    put("' + it.key + '", ' + it.key + ');\n' }
+        out << '    put("extra_keys_config", extra_keys_config);\n'
+        out << '  }};\n'
+        out << '\n'
+        out << '  public Prefs(Context ctx) {\n'
+        out << '    super(ctx);\n'
+        out << '    for (SharedPreferences store : new SharedPreferences[]{ builtInDisplayPreferences, secondaryDisplayPreferences }) {\n'
+        out << '      Object legacyKeepScreenOn = store.getAll().get("keepScreenOn");\n'
+        out << '      if (legacyKeepScreenOn instanceof Boolean && !store.contains("screenIdleTimeout"))\n'
+        out << '        store.edit().putString("screenIdleTimeout", (Boolean) legacyKeepScreenOn ? "never" : "system").commit();\n'
+        out << '    }\n'
+        out << '  }\n'
+        out << '}\n'
+    }
+    android.sourceSets.main.java.srcDirs += 'build/generated/java'
+    preBuild.dependsOn generatePrefs
+
+    tasks.register("generateShortcuts") {
+        def out = file('build/generated/templateRes/xml/shortcuts.xml')
+        out.getParentFile().exists() || out.getParentFile().mkdirs()
+        out.text = file('src/main/templates/xml/shortcuts.xml').text
+                .replace('@@APPLICATION_ID@@', android.defaultConfig.applicationId)
+    }
+    android.sourceSets.main.res.srcDirs += 'build/generated/templateRes'
+    preBuild.dependsOn generateShortcuts
+}
