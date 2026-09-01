@@ -161,19 +161,32 @@ public class StartVM {
 
         String inputDevicesParams = "";
         String mouse = Objects.requireNonNull(VMCreatorSelector.getMouse(activity, MainSettingsManager.getArch(activity), vmData.mouse).get("value")).toString();
-        if (!mouse.isEmpty()) {
-            inputDevicesParams += " -device " + mouse;
-        }
         String keyboard = Objects.requireNonNull(VMCreatorSelector.getKeyboard(activity, MainSettingsManager.getArch(activity), vmData.keyboard).get("value")).toString();
-        if (!keyboard.isEmpty()) {
-            inputDevicesParams += " -device " + keyboard;
-        }
         String usbController = Objects.requireNonNull(VMCreatorSelector.getUsbController(activity, vmData.usbController).get("value")).toString();
-        if (!usbController.equals(ListManager.NONE_VALUE)) {
-            inputDevicesParams = (usbController.isEmpty() ? " -usb" : (" -device " + usbController)) + inputDevicesParams;
-        } else if (!inputDevicesParams.isEmpty() && !ParamManager.hasUsb(extraParams)) {
-            // This is a fallback case for when the USB controller might be removed from the extra params after the virtual machine generator has validated it.
-            inputDevicesParams = " -usb" + inputDevicesParams;
+
+        boolean isMacOpenCore = vmConfigs.isOpenCore || (vmData.itemName != null && (vmData.itemName.toLowerCase().contains("catalina") || vmData.itemName.toLowerCase().contains("opencore") || vmData.itemName.toLowerCase().contains("macos") || vmData.itemName.toLowerCase().contains("mac os")));
+
+        if (isMacOpenCore && (usbController.contains("xhci") || usbController.isEmpty())) {
+            inputDevicesParams = " -device nec-usb-xhci,id=xhci";
+            if (!mouse.isEmpty()) {
+                inputDevicesParams += " -device " + mouse + ",bus=xhci.0";
+            }
+            if (!keyboard.isEmpty()) {
+                inputDevicesParams += " -device " + keyboard + ",bus=xhci.0";
+            }
+        } else {
+            if (!mouse.isEmpty()) {
+                inputDevicesParams += " -device " + mouse;
+            }
+            if (!keyboard.isEmpty()) {
+                inputDevicesParams += " -device " + keyboard;
+            }
+            if (!usbController.equals(ListManager.NONE_VALUE)) {
+                inputDevicesParams = (usbController.isEmpty() ? " -usb" : (" -device " + usbController)) + inputDevicesParams;
+            } else if (!inputDevicesParams.isEmpty() && !ParamManager.hasUsb(extraParams)) {
+                // This is a fallback case for when the USB controller might be removed from the extra params after the virtual machine generator has validated it.
+                inputDevicesParams = " -usb" + inputDevicesParams;
+            }
         }
 
 
@@ -300,6 +313,10 @@ public class StartVM {
                     cdrom += " usb-storage,bus=usbopticaldiscreader0.0,drive=cdromdrive0";
                     cdrom += " -drive";
                     cdrom += " if=none,id=cdromdrive0,format=raw,media=cdrom,file='" + vmConfigs.imgCdrom + "'";
+                } else if (vmConfigs.isOpenCore || (vmConfigs.itemName != null && (vmConfigs.itemName.toLowerCase().contains("catalina") || vmConfigs.itemName.toLowerCase().contains("opencore") || vmConfigs.itemName.toLowerCase().contains("macos") || vmConfigs.itemName.toLowerCase().contains("mac os")))) {
+                    // Apple macOS installer images (ISO/DMG) use Apple Partition Map/GPT and must be attached as raw disks for OpenCore to detect the recovery/installer partition
+                    cdrom = "-drive";
+                    cdrom += " media=disk,format=raw,file='" + vmConfigs.imgCdrom + "'";
                 } else {
                     if (!extras.contains("-cdrom ")) {
                         cdrom = "-cdrom";
