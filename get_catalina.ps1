@@ -1,6 +1,4 @@
 $headers = @{
-    "Host" = "osrecovery.apple.com"
-    "Connection" = "close"
     "User-Agent" = "InternetRecovery/1.0"
 }
 
@@ -8,8 +6,6 @@ $resp = Invoke-WebRequest -Uri "http://osrecovery.apple.com/" -Headers $headers 
 $sessionCookie = $session.Cookies.GetCookies("http://osrecovery.apple.com/") | Where-Object { $_.Name -eq "session" } | Select-Object -First 1
 
 $postHeaders = @{
-    "Host" = "osrecovery.apple.com"
-    "Connection" = "close"
     "User-Agent" = "InternetRecovery/1.0"
     "Cookie" = "$($sessionCookie.Name)=$($sessionCookie.Value)"
     "Content-Type" = "text/plain"
