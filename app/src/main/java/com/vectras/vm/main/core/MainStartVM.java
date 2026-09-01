@@ -372,7 +372,7 @@ public class MainStartVM {
             return;
         }
 
-        finalCommand = "echo ===== COMMAND =====\necho\necho \"" + finalCommand + "\"\necho\necho ===== LOGS =====\necho\n" + finalCommand + cleanUpCommand;
+        finalCommand = "echo ===== COMMAND =====\necho\ncat << 'VECTRAS_CMD_EOF'\n" + finalCommand + "\nVECTRAS_CMD_EOF\necho\necho ===== LOGS =====\necho\n" + finalCommand + cleanUpCommand;
 
         if (MainSettingsManager.getVmUi(context).equals("X11")) {
             finalCommand = "export DISPLAY=:0 && " + finalCommand;
