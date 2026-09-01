@@ -282,74 +282,100 @@ public class StartVM {
 
 
 
-            if (!img.isEmpty()) {
-                String diskparams = "-drive";
-                diskparams += " media=disk";
-                diskparams += ",discard=unmap";
-                if (vmConfigs.hdL2CacheSize > 0 && FormatManager.isQcow2Format(img))
-                    diskparams += ",l2-cache-size=" + vmConfigs.hdL2CacheSize + "M";
-                diskparams += ",file='" + img + "'";
+            boolean isMacOpenCoreVM = vmConfigs.isOpenCore || (vmConfigs.itemName != null && (vmConfigs.itemName.toLowerCase().contains("catalina") || vmConfigs.itemName.toLowerCase().contains("opencore") || vmConfigs.itemName.toLowerCase().contains("macos") || vmConfigs.itemName.toLowerCase().contains("mac os")));
 
-                params.add(diskparams);
-            }
+            if (isMacOpenCoreVM && MainSettingsManager.getArch(activity).equals("X86_64")) {
+                params.add("-device ich9-ahci,id=sata");
 
-            if (!vmConfigs.hd1.isEmpty()) {
-                String diskparams = "-drive";
-                diskparams += " media=disk";
-                diskparams += ",discard=unmap";
-                if (vmConfigs.hdL2CacheSize > 0 && FormatManager.isQcow2Format(vmConfigs.hd1))
-                    diskparams += ",l2-cache-size=" + vmConfigs.hdL2CacheSize + "M";
-                diskparams += ",file='" + vmConfigs.hd1 + "'";
+                if (!img.isEmpty()) {
+                    String format = FormatManager.isQcow2Format(img) ? "qcow2" : "raw";
+                    String driveId = img.toLowerCase().contains("opencore") ? "OpenCoreBoot" : "MacHDD0";
+                    String bus = img.toLowerCase().contains("opencore") ? "sata.2" : "sata.4";
+                    params.add("-drive id=" + driveId + ",if=none,file='" + img + "',format=" + format + " -device ide-hd,bus=" + bus + ",drive=" + driveId);
+                }
 
-                params.add(diskparams);
-            }
+                if (!vmConfigs.imgCdrom.isEmpty()) {
+                    String format = FormatManager.isQcow2Format(vmConfigs.imgCdrom) ? "qcow2" : "raw";
+                    params.add("-drive id=InstallMedia,if=none,file='" + vmConfigs.imgCdrom + "',format=" + format + " -device ide-hd,bus=sata.3,drive=InstallMedia");
+                }
 
-            if (!vmConfigs.imgCdrom.isEmpty()) {
-                String cdrom = "";
-                if (MainSettingsManager.getArch(activity).equals("ARM64")) {
-                    cdrom += " -device";
-                    cdrom += " nec-usb-xhci,id=usbopticaldiscreader0";
-                    cdrom += " -device";
-                    cdrom += " usb-storage,bus=usbopticaldiscreader0.0,drive=cdromdrive0";
-                    cdrom += " -drive";
-                    cdrom += " if=none,id=cdromdrive0,format=raw,media=cdrom,file='" + vmConfigs.imgCdrom + "'";
-                } else if (vmConfigs.isOpenCore || (vmConfigs.itemName != null && (vmConfigs.itemName.toLowerCase().contains("catalina") || vmConfigs.itemName.toLowerCase().contains("opencore") || vmConfigs.itemName.toLowerCase().contains("macos") || vmConfigs.itemName.toLowerCase().contains("mac os")))) {
-                    // Apple macOS installer images (ISO/DMG) use Apple Partition Map/GPT and must be attached as raw disks for OpenCore to detect the recovery/installer partition
-                    cdrom = "-drive";
-                    cdrom += " media=disk,format=raw,file='" + vmConfigs.imgCdrom + "'";
-                } else {
-                    if (!extras.contains("-cdrom ")) {
-                        cdrom = "-cdrom";
-                        cdrom += " '" + vmConfigs.imgCdrom + "'";
+                if (!vmConfigs.hd1.isEmpty()) {
+                    String format = FormatManager.isQcow2Format(vmConfigs.hd1) ? "qcow2" : "raw";
+                    String driveId = vmConfigs.hd1.toLowerCase().contains("opencore") ? "OpenCoreBoot" : "MacHDD1";
+                    String bus = vmConfigs.hd1.toLowerCase().contains("opencore") ? "sata.2" : (img.isEmpty() ? "sata.4" : "sata.5");
+                    params.add("-drive id=" + driveId + ",if=none,file='" + vmConfigs.hd1 + "',format=" + format + " -device ide-hd,bus=" + bus + ",drive=" + driveId);
+                }
+
+                if (!vmConfigs.cdrom1.isEmpty()) {
+                    String format = FormatManager.isQcow2Format(vmConfigs.cdrom1) ? "qcow2" : "raw";
+                    params.add("-drive id=ExtraMedia,if=none,file='" + vmConfigs.cdrom1 + "',format=" + format + " -device ide-hd,bus=sata.5,drive=ExtraMedia");
+                }
+            } else {
+                if (!img.isEmpty()) {
+                    String diskparams = "-drive";
+                    diskparams += " media=disk";
+                    diskparams += ",discard=unmap";
+                    if (vmConfigs.hdL2CacheSize > 0 && FormatManager.isQcow2Format(img))
+                        diskparams += ",l2-cache-size=" + vmConfigs.hdL2CacheSize + "M";
+                    diskparams += ",file='" + img + "'";
+
+                    params.add(diskparams);
+                }
+
+                if (!vmConfigs.hd1.isEmpty()) {
+                    String diskparams = "-drive";
+                    diskparams += " media=disk";
+                    diskparams += ",discard=unmap";
+                    if (vmConfigs.hdL2CacheSize > 0 && FormatManager.isQcow2Format(vmConfigs.hd1))
+                        diskparams += ",l2-cache-size=" + vmConfigs.hdL2CacheSize + "M";
+                    diskparams += ",file='" + vmConfigs.hd1 + "'";
+
+                    params.add(diskparams);
+                }
+
+                if (!vmConfigs.imgCdrom.isEmpty()) {
+                    String cdrom = "";
+                    if (MainSettingsManager.getArch(activity).equals("ARM64")) {
+                        cdrom += " -device";
+                        cdrom += " nec-usb-xhci,id=usbopticaldiscreader0";
+                        cdrom += " -device";
+                        cdrom += " usb-storage,bus=usbopticaldiscreader0.0,drive=cdromdrive0";
+                        cdrom += " -drive";
+                        cdrom += " if=none,id=cdromdrive0,format=raw,media=cdrom,file='" + vmConfigs.imgCdrom + "'";
                     } else {
-                        // QEMU only accepts media=disk|cdrom, so the drive must be
-                        // defined with if=none plus an id instead of media=cdromdriveN.
-                        cdrom = "-drive";
-                        cdrom += " if=none,id=cdromdrive1,format=raw,media=cdrom";
-                        cdrom += ",file='" + vmConfigs.imgCdrom + "'";
+                        if (!extras.contains("-cdrom ")) {
+                            cdrom = "-cdrom";
+                            cdrom += " '" + vmConfigs.imgCdrom + "'";
+                        } else {
+                            // QEMU only accepts media=disk|cdrom, so the drive must be
+                            // defined with if=none plus an id instead of media=cdromdriveN.
+                            cdrom = "-drive";
+                            cdrom += " if=none,id=cdromdrive1,format=raw,media=cdrom";
+                            cdrom += ",file='" + vmConfigs.imgCdrom + "'";
+                        }
                     }
+                    params.add(cdrom);
                 }
-                params.add(cdrom);
-            }
 
-            if (!vmConfigs.cdrom1.isEmpty()) {
-                String cdromParams;
-                String controllerId = vmConfigs.imgCdrom.isEmpty() ? "usbopticaldiscreader0" : "usbopticaldiscreader1";
+                if (!vmConfigs.cdrom1.isEmpty()) {
+                    String cdromParams;
+                    String controllerId = vmConfigs.imgCdrom.isEmpty() ? "usbopticaldiscreader0" : "usbopticaldiscreader1";
 
-                if (MainSettingsManager.getArch(activity).equals("ARM64")) {
-                    cdromParams = " -device";
-                    cdromParams += " nec-usb-xhci,id=" + controllerId;
-                    cdromParams += " -device";
-                    cdromParams += " usb-storage,bus=" + controllerId + ".0,drive=cdromdrive1";
-                    cdromParams += " -drive";
-                    cdromParams += " if=none,id=cdromdrive1,format=raw,media=cdrom,file='" + vmConfigs.cdrom1 + "'";
-                } else {
-                    cdromParams = "-drive";
-                    cdromParams += " if=none,id=cdromdrive1,format=raw,media=cdrom";
-                    cdromParams += ",file='" + vmConfigs.cdrom1 + "'";
-                    cdromParams += " -device ide-cd,drive=cdromdrive1";
+                    if (MainSettingsManager.getArch(activity).equals("ARM64")) {
+                        cdromParams = " -device";
+                        cdromParams += " nec-usb-xhci,id=" + controllerId;
+                        cdromParams += " -device";
+                        cdromParams += " usb-storage,bus=" + controllerId + ".0,drive=cdromdrive1";
+                        cdromParams += " -drive";
+                        cdromParams += " if=none,id=cdromdrive1,format=raw,media=cdrom,file='" + vmConfigs.cdrom1 + "'";
+                    } else {
+                        cdromParams = "-drive";
+                        cdromParams += " if=none,id=cdromdrive1,format=raw,media=cdrom";
+                        cdromParams += ",file='" + vmConfigs.cdrom1 + "'";
+                        cdromParams += " -device ide-cd,drive=cdromdrive1";
+                    }
+                    params.add(cdromParams);
                 }
-                params.add(cdromParams);
             }
 
 //            File hdd1File = new File(filesDir + "/data/Vectras/hdd1.qcow2");
