@@ -84,3 +84,9 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Disk Images
+*.dmg
+*.img
+*.qcow2
+*.iso
